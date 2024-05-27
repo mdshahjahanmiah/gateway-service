@@ -2,7 +2,6 @@ package services
 
 import (
 	"encoding/json"
-	"fmt"
 	httpclient "github.com/mdshahjahanmiah/gateway-service/pkg/client"
 	"github.com/pkg/errors"
 	"io/ioutil"
@@ -113,8 +112,6 @@ func (k *kmsService) fetchAndCacheKeyShares() error {
 	k.mutex.Lock()
 	k.keyShares = keyShares
 	k.mutex.Unlock()
-
-	fmt.Println("Key shares fetched and cached", k.keyShares)
 
 	return nil
 }

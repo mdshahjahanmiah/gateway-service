@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"github.com/hashicorp/vault/shamir"
 	httpclient "github.com/mdshahjahanmiah/gateway-service/pkg/client"
 	"github.com/pkg/errors"
+	"io/ioutil"
 	"net/http"
 	"sync"
 	"time"
@@ -34,26 +34,56 @@ type PartialDecryptResponse struct {
 	PartialDecryption string `json:"partial_decryption"`
 }
 
+// CiphertextResponse is the response from the KMS for the ciphertext
+type CiphertextResponse struct {
+	Ciphertext string `json:"ciphertext"`
+}
+
 // DsService defines the interface for the decryption service
 type DsService interface {
+	Ciphertext() (CiphertextResponse, error)
 	Decrypt(ciphertext string) (string, error)
 }
 
 // dsService implements the DsService interface
 type dsService struct {
-	client     *httpclient.Client
-	decryptURL string
-	keyShares  []KeyShareResponse
+	client    *httpclient.Client
+	dsUrl     string
+	keyShares []KeyShareResponse
 }
 
 // NewDsService creates a new DsService with the specified decryption service URL and timeout
-func NewDsService(decryptURL string, timeout time.Duration, keyShares []KeyShareResponse) DsService {
+func NewDsService(dsUrl string, timeout time.Duration, keyShares []KeyShareResponse) DsService {
 	client := httpclient.NewHttpClient(timeout)
 	return &dsService{
-		client:     client,
-		decryptURL: decryptURL,
-		keyShares:  keyShares,
+		client:    client,
+		dsUrl:     dsUrl,
+		keyShares: keyShares,
 	}
+}
+
+func (ds *dsService) Ciphertext() (CiphertextResponse, error) {
+	var ciphertext []byte
+	resp, err := ds.client.Get(ds.dsUrl + "/ciphertext")
+	if err != nil {
+		return CiphertextResponse{}, err
+	}
+	defer resp.Body.Close()
+
+	ciphertext, err = ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return CiphertextResponse{}, err
+	}
+
+	var response CiphertextResponse
+
+	// Unmarshal the JSON data into the struct
+	err = json.Unmarshal(ciphertext, &response)
+	if err != nil {
+		return CiphertextResponse{}, err
+	}
+
+	return response, err
 }
 
 // Decrypt performs the decryption using partial decryptions from key shares
@@ -104,14 +134,12 @@ func (ds *dsService) Decrypt(ciphertext string) (string, error) {
 // sendPartialDecryptRequest sends a partial decryption request to the decryption service
 func (d *dsService) sendPartialDecryptRequest(req PartialDecryptRequest) (*PartialDecryptResponse, error) {
 
-	fmt.Println("Decrypting partial: ", req)
-
 	reqBytes, err := json.Marshal(req)
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := d.client.Post(d.decryptURL+"/partial-decrypt", "application/json", bytes.NewBuffer(reqBytes))
+	resp, err := d.client.Post(d.dsUrl+"/partial-decrypt", "application/json", bytes.NewBuffer(reqBytes))
 	if err != nil {
 		return nil, err
 	}
