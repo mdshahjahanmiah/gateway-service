@@ -27,6 +27,19 @@ func GetDecryptEndpoint(logger *logging.Logger, dsService services.DsService) en
 	}
 }
 
+// GetCiphertextEndpoint decodes a decrypt request from an HTTP request
+func GetCiphertextEndpoint(logger *logging.Logger, dsService services.DsService) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
+		ciphertextResponse, err := dsService.Ciphertext()
+		if err != nil {
+			logger.Error("failed to generate cipher text message", "error", err)
+			return nil, eError.NewTransportError(err, "INTERNAL_SERVER_ERROR")
+		}
+
+		return ciphertextResponse, nil
+	}
+}
+
 // DecodeDecryptRequest decodes a decrypt request from an HTTP request
 func DecodeDecryptRequest(ctx context.Context, request *http.Request) (interface{}, error) {
 	decoder := json.NewDecoder(request.Body)
@@ -40,4 +53,9 @@ func DecodeDecryptRequest(ctx context.Context, request *http.Request) (interface
 	return services.DecryptRequest{
 		Ciphertext: decryptRequest.Ciphertext,
 	}, nil
+}
+
+// NoRequestDecoder decodes a ciphertext request from an HTTP request
+func NoRequestDecoder(ctx context.Context, request *http.Request) (interface{}, error) {
+	return nil, nil
 }

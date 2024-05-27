@@ -16,13 +16,20 @@ func RegisterDecryptionRoutes(r chi.Router, logger *logging.Logger, dsService se
 			kithttp.ServerErrorEncoder(error.EncodeError),
 		}
 
+		handleCiphertext := kithttp.NewServer(
+			handlers.GetCiphertextEndpoint(logger, dsService),
+			handlers.NoRequestDecoder,
+			kithttp.EncodeJSONResponse,
+			opts...,
+		)
+
 		handleDecrypt := kithttp.NewServer(
 			handlers.GetDecryptEndpoint(logger, dsService),
 			handlers.DecodeDecryptRequest,
 			kithttp.EncodeJSONResponse,
 			opts...,
 		)
-
+		r.Get("/ciphertext", handleCiphertext.ServeHTTP)
 		r.Post("/decrypt", handleDecrypt.ServeHTTP)
 	})
 }
